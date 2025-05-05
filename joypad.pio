@@ -1,0 +1,48 @@
+.pio_version 0
+
+.program joypad
+
+loop:
+    set pins, 1         ; data line is LOW at rest
+    wait 1 pin 0        ; wait for latch HIGH pulse
+    irq set 0 rel       ; raise IRQ and wait for CPU acknowledgement
+    pull block          ; wait for 16-bits data from CPU, pull into OSR
+    wait 0 pin 0        ; wait for latch to go LOW again
+    out pins, 1         ; output first bit immediately
+    set x, 15           ; get ready to output the following bits
+bitloop:
+    wait 0 pin 1        ; wait for clock to pulse LOW
+    wait 1 pin 1        ; and to go HIGH again
+    out pins, 1         ; output next bit on rising edge of clock
+    jmp x-- bitloop     ; on to the next bit
+    wait 0 pin 1        ; wait for one last clock pulse
+    wait 1 pin 1
+    ; autowrap to idle
+
+% c-sdk {
+static inline void joypad_program_init(PIO pio, uint sm, uint offset, uint pin) {
+    // Pins configuration
+    uint latch = pin;
+    uint clock = pin + 1;
+    uint data = pin + 2;
+    
+    // Data line is **active LOW** --> unpressed button is HIGH on data line, 0 on SNES CPU
+    // Data line output is inverted (logic HIGH is LOW on the line)
+    pio_gpio_init(pio, data);
+    gpio_set_outover(data, GPIO_OVERRIDE_INVERT);
+
+    pio_sm_set_consecutive_pindirs(pio, sm, latch, 2, false);
+    pio_sm_set_consecutive_pindirs(pio, sm, data, 1, true);
+
+    // State-machine configuration
+    pio_sm_config c = joypad_program_get_default_config(offset);
+
+    sm_config_set_in_pins(&c, latch);
+    sm_config_set_out_pins(&c, data, 1);
+
+    // Auto-pull OSR from TX FIFO every 16 bits
+    sm_config_set_out_shift(&c, true, true, 16);
+    
+    pio_sm_init(pio, sm, offset, &c);
+}
+%}
