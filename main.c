@@ -10,7 +10,30 @@
 // Data line is **active LOW** --> unpressed button is HIGH on data line, 0 on SNES CPU
 // Last 4 bits are always 0000 for a standard controller --> HIGH on data line
 // Bits order: B Y Select Start Up Down Left Right / A X L R 0 0 0 0
-uint16_t data = 0xffff;
+typedef struct {
+    uint16_t signature:4;
+    uint16_t r:1;
+    uint16_t l:1;
+    uint16_t x:1;
+    uint16_t a:1;
+    uint16_t right:1;
+    uint16_t left:1;
+    uint16_t down:1;
+    uint16_t up:1;
+    uint16_t start:1;
+    uint16_t select:1;
+    uint16_t y:1;
+    uint16_t b:1;
+} buttons_t;
+
+typedef union {
+    buttons_t buttons;
+    uint16_t raw;
+} input_t;
+
+#define BIT(n) (!((data.raw >> n) & 0x1))
+
+input_t data = {0};
 
 // Counter to press DOWN button every 60 polls
 uint16_t counter = 0;
@@ -45,7 +68,7 @@ int main() {
         }
         
         // Output first bit on latch falling edge
-        gpio_put(DATA_PIN, (data >> 15) & 0x1);
+        gpio_put(DATA_PIN, BIT(15));
         
         // Output the next 15 bits
         for (int i=14; i>=0; i--) {
@@ -58,7 +81,7 @@ int main() {
             }
 
             // Output next bit on clock rising edge
-            gpio_put(DATA_PIN, (data >> i) & 0x1);
+            gpio_put(DATA_PIN, BIT(i));
         }
 
         // Wait for the last clock pulse
@@ -74,11 +97,9 @@ int main() {
 
         // Press DOWN button every 60 polls
         counter++;
-        if ((counter % 60) == 0) {
-            data = 0xfbff;
-        } else {
-            data = 0xffff;
-        }
+        data.buttons.down = (counter % 60) == 0;
+
+        //printf("inputs: 0x%04x down=0x%x=%d\n", data.raw, data.buttons.down, BIT(10));
 
     }
     return 0;

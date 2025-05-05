@@ -25,6 +25,8 @@ The Pico board is expected to be wired as follows:
  7 Ground     GND
 ```
 
+**Important**: at least for PAL consoles, Clock and Latch pins (GPIO 13 and 14) must be PULLED-UP to 5V with 3.6kΩ resistors.
+
 
 ## Build instructions
 
